@@ -71,10 +71,12 @@ jobs:
 
       - name: Prepare binaries for Docker
         run: |
-          mkdir -p ./docker-context/binaries
-          cp ./binaries/discord-ratelimit-reporter-x86_64-unknown-linux-gnu/discord-ratelimit-reporter-x86_64-unknown-linux-gnu ./docker-context/binaries/discord-ratelimit-reporter-x86_64
-          cp ./binaries/discord-ratelimit-reporter-aarch64-unknown-linux-gnu/discord-ratelimit-reporter-aarch64-unknown-linux-gnu ./docker-context/binaries/discord-ratelimit-reporter-aarch64
-          chmod +x ./docker-context/binaries/discord-ratelimit-reporter-*
+          ls -la ./binaries
+          mkdir -p ./docker-context
+          cp ./binaries/discord-ratelimit-reporter-x86_64-unknown-linux-gnu/discord-ratelimit-reporter-x86_64-unknown-linux-gnu ./docker-context/discord-ratelimit-reporter-amd64
+          cp ./binaries/discord-ratelimit-reporter-aarch64-unknown-linux-gnu/discord-ratelimit-reporter-aarch64-unknown-linux-gnu ./docker-context/discord-ratelimit-reporter-arm64
+          chmod +x ./docker-context/discord-ratelimit-reporter-*
+          ls -la ./docker-context
 
       - name: Create Dockerfile for final image
         run: |
@@ -94,7 +96,7 @@ jobs:
               appuser
           
           ARG TARGETARCH
-          COPY binaries/discord-ratelimit-reporter-$TARGETARCH /bin/server
+          COPY discord-ratelimit-reporter-${TARGETARCH} /bin/server
           USER appuser
           CMD ["/bin/server"]
           EOF
@@ -126,11 +128,6 @@ jobs:
             type=semver,pattern={{version}}
             type=sha,format=long
             latest
-
-      - name: Prepare binaries with correct names
-        run: |
-          mv ./docker-context/binaries/discord-ratelimit-reporter-x86_64 ./docker-context/binaries/discord-ratelimit-reporter-amd64
-          # arm64 is already correctly named
 
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v5
