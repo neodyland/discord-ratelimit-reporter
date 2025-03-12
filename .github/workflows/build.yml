@@ -71,8 +71,6 @@ jobs:
 
       - name: Prepare binaries for Docker
         run: |
-          mkdir -p ./docker-context
-          cp -r . ./docker-context/
           mkdir -p ./docker-context/binaries
           cp ./binaries/discord-ratelimit-reporter-x86_64-unknown-linux-gnu/discord-ratelimit-reporter-x86_64-unknown-linux-gnu ./docker-context/binaries/discord-ratelimit-reporter-x86_64
           cp ./binaries/discord-ratelimit-reporter-aarch64-unknown-linux-gnu/discord-ratelimit-reporter-aarch64-unknown-linux-gnu ./docker-context/binaries/discord-ratelimit-reporter-aarch64
@@ -105,8 +103,16 @@ jobs:
           USER appuser
           CMD ["/bin/server"]
 
-          FROM ${TARGETPLATFORM:-linux/amd64}
-          COPY --from=x86_64 / /
+          FROM --platform=$TARGETPLATFORM base
+          COPY --from=x86_64 /bin/server /bin/server-x86_64
+          COPY --from=aarch64 /bin/server /bin/server-aarch64
+          RUN if [ "$(uname -m)" = "x86_64" ]; then \
+                cp /bin/server-x86_64 /bin/server; \
+              elif [ "$(uname -m)" = "aarch64" ]; then \
+                cp /bin/server-aarch64 /bin/server; \
+              fi
+          USER appuser
+          CMD ["/bin/server"]
           EOF
 
       - name: Set up Docker Buildx
