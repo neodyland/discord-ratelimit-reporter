@@ -40,11 +40,10 @@ jobs:
             --target build-stage \
             .
 
-      - name: Extract artifacts from Docker
+      - name: Debug container contents
         run: |
-          mkdir -p target/${{ matrix.target }}/release
           docker create --name temp-container binary-build:${{ matrix.target }}
-          docker cp temp-container:/app/target/${{ matrix.target }}/release/discord-ratelimit-reporter ./discord-ratelimit-reporter-${{ matrix.target }}
+          docker cp temp-container:/bin/server ./discord-ratelimit-reporter-${{ matrix.target }}
           docker rm temp-container
 
       - name: Upload artifacts
