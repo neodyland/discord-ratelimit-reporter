@@ -78,10 +78,9 @@ jobs:
 
       - name: Create Dockerfile for final image
         run: |
-          cat > ./docker-context/Dockerfile.final << 'EOF'
-          # x86_64 image
-          FROM debian:bookworm-slim AS x86_64-image
-          RUN apt update && apt install -y libssl-dev ca-certificates
+          cat > ./docker-context/Dockerfile.amd64 << 'EOF'
+          FROM debian:bookworm-slim
+          #RUN apt update && apt install -y libssl-dev ca-certificates
           
           # Create a non-privileged user
           ARG UID=10001
@@ -97,10 +96,11 @@ jobs:
           COPY binaries/discord-ratelimit-reporter-x86_64 /bin/server
           USER appuser
           CMD ["/bin/server"]
-          
-          # aarch64 image
-          FROM debian:bookworm-slim AS aarch64-image
-          RUN apt update && apt install -y libssl-dev ca-certificates
+          EOF
+
+          cat > ./docker-context/Dockerfile.arm64 << 'EOF'
+          FROM debian:bookworm-slim
+          #RUN apt update && apt install -y libssl-dev ca-certificates
           
           # Create a non-privileged user
           ARG UID=10001
@@ -149,11 +149,10 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./docker-context
-          file: ./docker-context/Dockerfile.final
-          target: x86_64-image
+          file: ./docker-context/Dockerfile.amd64
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64
-          tags: ghcr.io/${{ github.repository }}:amd64
+          tags: ghcr.io/${{ github.repository }}:amd64-latest
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -162,29 +161,31 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./docker-context
-          file: ./docker-context/Dockerfile.final
-          target: aarch64-image
+          file: ./docker-context/Dockerfile.arm64
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/arm64
-          tags: ghcr.io/${{ github.repository }}:arm64
+          tags: ghcr.io/${{ github.repository }}:arm64-latest
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Create and push manifest
+      - name: Create and push multi-arch manifest
         if: ${{ github.event_name != 'pull_request' }}
         run: |
+          # Install latest docker cli to support manifest command
+          curl -fsSL https://get.docker.com | sh
+          
+          # Create and push manifest for latest tag
           docker manifest create ghcr.io/${{ github.repository }}:latest \
-            ghcr.io/${{ github.repository }}:amd64 \
-            ghcr.io/${{ github.repository }}:arm64
-          
-          # Add additional tags from metadata
-          for tag in $(echo "${{ steps.meta.outputs.tags }}" | grep -v "latest"); do
-            docker manifest create $tag \
-              ghcr.io/${{ github.repository }}:amd64 \
-              ghcr.io/${{ github.repository }}:arm64
-            
-            docker manifest push $tag
-          done
-          
+            --amend ghcr.io/${{ github.repository }}:amd64-latest \
+            --amend ghcr.io/${{ github.repository }}:arm64-latest
           docker manifest push ghcr.io/${{ github.repository }}:latest
+          
+          # Create and push manifests for other tags
+          for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr '\n' ' ' | sed 's/ghcr\.io\/[^:]*://g' | grep -v "latest"); do
+            echo "Creating manifest for tag: $tag"
+            docker manifest create ghcr.io/${{ github.repository }}:$tag \
+              --amend ghcr.io/${{ github.repository }}:amd64-latest \
+              --amend ghcr.io/${{ github.repository }}:arm64-latest
+            docker manifest push ghcr.io/${{ github.repository }}:$tag
+          done
