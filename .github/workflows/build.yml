@@ -48,7 +48,7 @@ jobs:
           docker rm temp-container
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: discord-ratelimit-reporter-${{ matrix.target }}
           path: ./discord-ratelimit-reporter-${{ matrix.target }}
