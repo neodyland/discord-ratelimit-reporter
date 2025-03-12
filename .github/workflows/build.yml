@@ -79,9 +79,10 @@ jobs:
       - name: Create Dockerfile for final image
         run: |
           cat > ./docker-context/Dockerfile.final << 'EOF'
-          FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS base
+          # x86_64 image
+          FROM debian:bookworm-slim AS x86_64-image
           RUN apt update && apt install -y libssl-dev ca-certificates
-
+          
           # Create a non-privileged user
           ARG UID=10001
           RUN adduser \
@@ -92,25 +93,27 @@ jobs:
               --no-create-home \
               --uid "${UID}" \
               appuser
-
-          FROM base AS x86_64
+          
           COPY binaries/discord-ratelimit-reporter-x86_64 /bin/server
           USER appuser
           CMD ["/bin/server"]
-
-          FROM base AS aarch64
+          
+          # aarch64 image
+          FROM debian:bookworm-slim AS aarch64-image
+          RUN apt update && apt install -y libssl-dev ca-certificates
+          
+          # Create a non-privileged user
+          ARG UID=10001
+          RUN adduser \
+              --disabled-password \
+              --gecos "" \
+              --home "/nonexistent" \
+              --shell "/sbin/nologin" \
+              --no-create-home \
+              --uid "${UID}" \
+              appuser
+          
           COPY binaries/discord-ratelimit-reporter-aarch64 /bin/server
-          USER appuser
-          CMD ["/bin/server"]
-
-          FROM --platform=$TARGETPLATFORM base
-          COPY --from=x86_64 /bin/server /bin/server-x86_64
-          COPY --from=aarch64 /bin/server /bin/server-aarch64
-          RUN if [ "$(uname -m)" = "x86_64" ]; then \
-                cp /bin/server-x86_64 /bin/server; \
-              elif [ "$(uname -m)" = "aarch64" ]; then \
-                cp /bin/server-aarch64 /bin/server; \
-              fi
           USER appuser
           CMD ["/bin/server"]
           EOF
@@ -142,14 +145,46 @@ jobs:
             type=sha,format=long
             latest
 
-      - name: Build and push Docker image
+      - name: Build and push x86_64 image
         uses: docker/build-push-action@v5
         with:
           context: ./docker-context
           file: ./docker-context/Dockerfile.final
+          target: x86_64-image
           push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: linux/amd64
+          tags: ghcr.io/${{ github.repository }}:amd64
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Build and push aarch64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker-context
+          file: ./docker-context/Dockerfile.final
+          target: aarch64-image
+          push: ${{ github.event_name != 'pull_request' }}
+          platforms: linux/arm64
+          tags: ghcr.io/${{ github.repository }}:arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create and push manifest
+        if: ${{ github.event_name != 'pull_request' }}
+        run: |
+          docker manifest create ghcr.io/${{ github.repository }}:latest \
+            ghcr.io/${{ github.repository }}:amd64 \
+            ghcr.io/${{ github.repository }}:arm64
+          
+          # Add additional tags from metadata
+          for tag in $(echo "${{ steps.meta.outputs.tags }}" | grep -v "latest"); do
+            docker manifest create $tag \
+              ghcr.io/${{ github.repository }}:amd64 \
+              ghcr.io/${{ github.repository }}:arm64
+            
+            docker manifest push $tag
+          done
+          
+          docker manifest push ghcr.io/${{ github.repository }}:latest
