@@ -82,7 +82,6 @@ jobs:
         run: |
           cat > ./docker-context/Dockerfile << 'EOF'
           FROM debian:bookworm-slim
-          #RUN apt update && apt install -y libssl-dev ca-certificates
           
           # Create a non-privileged user
           ARG UID=10001
