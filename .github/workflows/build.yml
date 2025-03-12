@@ -78,7 +78,7 @@ jobs:
 
       - name: Create Dockerfile for final image
         run: |
-          cat > ./docker-context/Dockerfile.amd64 << 'EOF'
+          cat > ./docker-context/Dockerfile << 'EOF'
           FROM debian:bookworm-slim
           #RUN apt update && apt install -y libssl-dev ca-certificates
           
@@ -93,32 +93,14 @@ jobs:
               --uid "${UID}" \
               appuser
           
-          COPY binaries/discord-ratelimit-reporter-x86_64 /bin/server
-          USER appuser
-          CMD ["/bin/server"]
-          EOF
-
-          cat > ./docker-context/Dockerfile.arm64 << 'EOF'
-          FROM debian:bookworm-slim
-          #RUN apt update && apt install -y libssl-dev ca-certificates
-          
-          # Create a non-privileged user
-          ARG UID=10001
-          RUN adduser \
-              --disabled-password \
-              --gecos "" \
-              --home "/nonexistent" \
-              --shell "/sbin/nologin" \
-              --no-create-home \
-              --uid "${UID}" \
-              appuser
-          
-          COPY binaries/discord-ratelimit-reporter-aarch64 /bin/server
+          ARG TARGETARCH
+          COPY binaries/discord-ratelimit-reporter-$TARGETARCH /bin/server
           USER appuser
           CMD ["/bin/server"]
           EOF
 
       - name: Set up Docker Buildx
+        id: buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Setup QEMU
@@ -145,10 +127,16 @@ jobs:
             type=sha,format=long
             latest
 
+      - name: Prepare binaries with correct names
+        run: |
+          mv ./docker-context/binaries/discord-ratelimit-reporter-x86_64 ./docker-context/binaries/discord-ratelimit-reporter-amd64
+          # arm64 is already correctly named
+
       - name: Build and push multi-arch image
         uses: docker/build-push-action@v5
         with:
           context: ./docker-context
+          file: ./docker-context/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
@@ -156,6 +144,3 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          file: |
-            linux/amd64=./docker-context/Dockerfile.amd64
-            linux/arm64=./docker-context/Dockerfile.arm64
