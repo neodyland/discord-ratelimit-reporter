@@ -40,7 +40,7 @@ jobs:
             --target build-stage \
             .
 
-      - name: Debug container contents
+      - name: Extract binary from container
         run: |
           docker create --name temp-container binary-build:${{ matrix.target }}
           docker cp temp-container:/bin/server ./discord-ratelimit-reporter-${{ matrix.target }}
@@ -63,6 +63,51 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./binaries
+
+      - name: Prepare binaries for Docker
+        run: |
+          mkdir -p ./docker-context
+          cp -r . ./docker-context/
+          mkdir -p ./docker-context/binaries
+          cp ./binaries/discord-ratelimit-reporter-x86_64-unknown-linux-gnu/discord-ratelimit-reporter-x86_64-unknown-linux-gnu ./docker-context/binaries/discord-ratelimit-reporter-x86_64
+          cp ./binaries/discord-ratelimit-reporter-aarch64-unknown-linux-gnu/discord-ratelimit-reporter-aarch64-unknown-linux-gnu ./docker-context/binaries/discord-ratelimit-reporter-aarch64
+          chmod +x ./docker-context/binaries/discord-ratelimit-reporter-*
+
+      - name: Create Dockerfile for final image
+        run: |
+          cat > ./docker-context/Dockerfile.final << 'EOF'
+          FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS base
+          RUN apt update && apt install -y libssl-dev ca-certificates
+
+          # Create a non-privileged user
+          ARG UID=10001
+          RUN adduser \
+              --disabled-password \
+              --gecos "" \
+              --home "/nonexistent" \
+              --shell "/sbin/nologin" \
+              --no-create-home \
+              --uid "${UID}" \
+              appuser
+
+          FROM base AS x86_64
+          COPY binaries/discord-ratelimit-reporter-x86_64 /bin/server
+          USER appuser
+          CMD ["/bin/server"]
+
+          FROM base AS aarch64
+          COPY binaries/discord-ratelimit-reporter-aarch64 /bin/server
+          USER appuser
+          CMD ["/bin/server"]
+
+          FROM ${TARGETPLATFORM:-linux/amd64}
+          COPY --from=x86_64 / /
+          EOF
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -94,7 +139,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./docker-context
+          file: ./docker-context/Dockerfile.final
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
