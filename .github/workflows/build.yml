@@ -145,47 +145,17 @@ jobs:
             type=sha,format=long
             latest
 
-      - name: Build and push x86_64 image
+      - name: Build and push multi-arch image
         uses: docker/build-push-action@v5
         with:
           context: ./docker-context
-          file: ./docker-context/Dockerfile.amd64
           push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/amd64
-          tags: ghcr.io/${{ github.repository }}:amd64-latest
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          builder: ${{ steps.buildx.outputs.name }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Build and push aarch64 image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./docker-context
-          file: ./docker-context/Dockerfile.arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          platforms: linux/arm64
-          tags: ghcr.io/${{ github.repository }}:arm64-latest
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Create and push multi-arch manifest
-        if: ${{ github.event_name != 'pull_request' }}
-        run: |
-          # Install latest docker cli to support manifest command
-          curl -fsSL https://get.docker.com | sh
-          
-          # Create and push manifest for latest tag
-          docker manifest create ghcr.io/${{ github.repository }}:latest \
-            --amend ghcr.io/${{ github.repository }}:amd64-latest \
-            --amend ghcr.io/${{ github.repository }}:arm64-latest
-          docker manifest push ghcr.io/${{ github.repository }}:latest
-          
-          # Create and push manifests for other tags
-          for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr '\n' ' ' | sed 's/ghcr\.io\/[^:]*://g' | grep -v "latest"); do
-            echo "Creating manifest for tag: $tag"
-            docker manifest create ghcr.io/${{ github.repository }}:$tag \
-              --amend ghcr.io/${{ github.repository }}:amd64-latest \
-              --amend ghcr.io/${{ github.repository }}:arm64-latest
-            docker manifest push ghcr.io/${{ github.repository }}:$tag
-          done
+          file: |
+            linux/amd64=./docker-context/Dockerfile.amd64
+            linux/arm64=./docker-context/Dockerfile.arm64
