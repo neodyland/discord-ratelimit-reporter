@@ -4,8 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'src/bin/client/**'
-      - 'src/lib/**'
+      - 'client/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/client-build.yml'
@@ -13,8 +12,7 @@ on:
   pull_request:
     branches: [ main ]
     paths:
-      - 'src/bin/client/**'
-      - 'src/lib/**'
+      - 'client/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/client-build.yml'
@@ -65,7 +63,7 @@ jobs:
       - name: Extract binary from container
         run: |
           docker create --name temp-container client-binary-build:${{ matrix.target }}
-          docker cp temp-container:/bin/server ./discord-client-${{ matrix.target }}
+          docker cp temp-container:/bin/client ./discord-client-${{ matrix.target }}
           docker rm temp-container
 
       - name: Upload artifacts
