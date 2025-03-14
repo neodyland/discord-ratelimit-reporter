@@ -1,8 +1,8 @@
 FROM rust:1.85.0 AS build-stage
 
-ARG APP_NAME=server
+ARG APP_NAME=client
 ARG TARGET=x86_64-unknown-linux-gnu
-ARG BIN_PATH=src/bin/server
+ARG BIN_PATH=src/bin/client
 
 ARG BUILDDIR=/app
 WORKDIR ${BUILDDIR}
@@ -55,6 +55,6 @@ RUN adduser \
     appuser
 USER appuser
 
-COPY --from=build-stage /bin/server /bin/
+COPY --from=build-stage /bin/server /bin/client
 
-CMD ["/bin/server"]
+CMD ["/bin/client"]
