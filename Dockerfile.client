@@ -24,7 +24,8 @@ RUN rustup target add ${TARGET}
 # Leverage a bind mount to the src directory to avoid having to copy the
 # source code into the container. Once built, copy the executable to an
 # output directory before the cache mounted /app/target is unmounted.
-RUN --mount=type=bind,source=client,target=client \
+RUN --mount=type=bind,source=server,target=server \
+    --mount=type=bind,source=client,target=client \
     --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
     --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
     --mount=type=cache,target=${BUILDDIR}/target/ \
@@ -33,7 +34,7 @@ RUN --mount=type=bind,source=client,target=client \
 set -e
 cargo build --locked --release --target ${TARGET} --bin ${APP_NAME}
 mkdir -p /bin
-cp ./target/${TARGET}/release/${APP_NAME} /bin/server
+cp ./target/${TARGET}/release/${APP_NAME} /bin/client
 EOF
 
 
@@ -55,6 +56,6 @@ RUN adduser \
     appuser
 USER appuser
 
-COPY --from=build-stage /bin/server /bin/client
+COPY --from=build-stage /bin/client /bin/
 
 CMD ["/bin/client"]

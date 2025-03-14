@@ -25,6 +25,7 @@ RUN rustup target add ${TARGET}
 # source code into the container. Once built, copy the executable to an
 # output directory before the cache mounted /app/target is unmounted.
 RUN --mount=type=bind,source=server,target=server \
+    --mount=type=bind,source=client,target=client \
     --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
     --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
     --mount=type=cache,target=${BUILDDIR}/target/ \
