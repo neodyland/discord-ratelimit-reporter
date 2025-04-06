@@ -16,10 +16,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut exceeded = false;
     loop {
         interval.tick().await;
-        let response = reqwest::get("https://discord.com/api/v10/invites/discord-developers").await?;
-        let body = response.json::<serde_json::Value>().await?;
+        let response =
+            reqwest::get("https://discord.com/api/v10/invites/discord-developers").await?;
+        let text = response.text().await;
+        if let Err(e) = text {
+            log::error!("Failed to get response: {}", e);
+            continue;
+        }
+        let text = text.unwrap();
+        let body = serde_json::from_str::<serde_json::Value>(&text);
+        if let Err(e) = body {
+            log::error!("Failed to parse response: {}", e);
+            continue;
+        }
+        let body = body.unwrap();
         if let Some(message) = body.get("message") {
-            if message.as_str().unwrap().starts_with("You are being blocked") && !exceeded {
+            if message
+                .as_str()
+                .unwrap()
+                .starts_with("You are being blocked")
+                && !exceeded
+            {
                 exceeded = true;
                 log::error!("Rate limit exceeded: {}", message);
                 let client = reqwest::Client::new();

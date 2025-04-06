@@ -1,7 +1,9 @@
 use std::env;
 
 use axum::{
-    response::IntoResponse, routing::{get, post}, Json, Router
+    Json, Router,
+    response::IntoResponse,
+    routing::{get, post},
 };
 
 #[derive(serde::Deserialize)]
@@ -34,7 +36,7 @@ async fn root() -> &'static str {
 async fn ratelimit(
     headers: axum::http::HeaderMap,
     Json(body): Json<RatelimitRequest>,
-)-> impl IntoResponse {
+) -> impl IntoResponse {
     let authorization = headers.get("Authorization").unwrap().to_str().unwrap();
     if authorization != env::var("API_KEY").unwrap() {
         return (axum::http::StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
@@ -58,5 +60,9 @@ async fn ratelimit(
         .await
         .unwrap();
 
-    (axum::http::StatusCode::OK, format!("Ratelimit for node {} reported", body.node)).into_response()
+    (
+        axum::http::StatusCode::OK,
+        format!("Ratelimit for node {} reported", body.node),
+    )
+        .into_response()
 }
